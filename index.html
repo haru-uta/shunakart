@@ -622,7 +622,10 @@ const ITEMS={
   homing:{icon:'🔴',name:'おいかけボール',desc:'ひとつ前のライバルを おいかける'},
   jerky:{icon:'🍖',name:'ジャーキー',desc:'ぐーんと 加速（3こセットのことも）'},
   star:{icon:'🌟',name:'おやつパワー',desc:'7秒間 むてき＆はやい。ぶつかった子は スピン'},
-  bath:{icon:'🛁',name:'シャンプー',desc:'ライバル全員が 泡で小さく・おそくなる'}
+  bath:{icon:'🛁',name:'シャンプー',desc:'ライバル全員が 泡で小さく・おそくなる'},
+  thunder:{icon:'⚡',name:'かみなり',desc:'1位の子に かみなりが おちる。スピン＆しばらく 小さく'},
+  big:{icon:'🐘',name:'でっかくなる',desc:'6秒間 大きくなって、ぶつかった子を はじきとばす'},
+  mud:{icon:'🟤',name:'どろだんご',desc:'うしろに置く。ふんだ子は どろんこで おそくなる'}
 };
 
 // ================= courses
@@ -1252,6 +1255,7 @@ function buildTrack(ci){
   const padTex=own(mkTex(64,128,(g,w,h)=>{g.fillStyle='#ff9a00';g.fillRect(0,0,w,h);g.fillStyle='#fff6b8';for(let k=0;k<3;k++){const y=k*42+8;g.beginPath();g.moveTo(w/2,y);g.lineTo(w-6,y+26);g.lineTo(w-18,y+32);g.lineTo(w/2,y+14);g.lineTo(18,y+32);g.lineTo(6,y+26);g.closePath();g.fill()}g.strokeStyle='#fff3a6';g.lineWidth=4;g.strokeRect(2,2,w-4,h-4)}));
   [{f:.3,lat:-6},{f:.565,lat:6},{f:.8,lat:0},{f:.95,lat:-7}].forEach(p=>{const i=Math.round(p.f*N);const mat=new THREE.MeshBasicMaterial({map:padTex,transparent:true});mat.color.setRGB(1.5,1.5,1.5);const m=new THREE.Mesh(new THREE.PlaneGeometry(6,9),mat);
     m.rotation.x=-Math.PI/2;m.rotation.z=Math.PI;const h=new THREE.Group();h.add(m);h.position.set(PX[i]+NX[i]*p.lat,.07,PZ[i]+NZ[i]*p.lat);h.rotation.y=Math.atan2(TX[i],TZ[i]);grp.add(h);T.pads.push({idx:i,lat:p.lat,mat})});
+  buildCrossers(C,grp);
   // item boxes
   [.12,.4,.68,.87].forEach(f=>{const i=Math.round(f*N);[-9,-3,3,9].forEach(l=>{const m=new THREE.Mesh(boxGeo,boxMat);m.position.set(PX[i]+NX[i]*l,2,PZ[i]+NZ[i]*l);m.castShadow=true;grp.add(m);T.boxes.push({m,x:m.position.x,z:m.position.z,t:0})})});
   {let sd=(ci+1)*2654435761>>>0;const r0=Math.random;Math.random=()=>{sd=(sd+0x6D2B79F5)>>>0;let t=sd;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296};
@@ -1515,15 +1519,54 @@ const MEL=[72,76,79,76,77,76,74,72, 69,72,76,72,74,72,71,69, 65,69,72,77,76,74,7
            72,76,79,84,83,79,76,79, 81,79,76,72,74,76,72,69, 77,76,74,72,74,77,81,77, 79,0,79,0,74,76,77,79];
 const BASS=[48,48,48,48,45,45,45,45,41,41,41,41,43,43,43,43, 48,48,48,48,45,45,45,45,41,41,41,41,43,43,43,43];
 const mtof=m=>440*Math.pow(2,(m-69)/12);
-const MUS={on:false,step:0,next:0,tempo:1,base:1,tr:0,wave:'square'};
-function musicStart(m){if(!SND.ctx)return;m=m||{tr:0,tempo:1,wave:'square'};MUS.on=true;MUS.step=0;MUS.next=SND.ctx.currentTime+.05;MUS.base=m.tempo;MUS.tempo=1;MUS.tr=m.tr;MUS.wave=m.wave}
+// ---- course songs (8 bars of 8th notes each; 0 = rest). Every course has its own tune, instruments and beat.
+const SONGS={
+  grass:{e:.17,lead:{w:'square',v:.045},
+    chords:[[48,52,55],[43,47,50],[45,48,52],[41,45,48],[48,52,55],[43,47,50],[41,45,48],[43,47,50]],
+    mel:[72,0,76,79,84,0,79,76, 74,0,79,83,86,0,83,79, 76,0,72,76,81,0,79,76, 77,76,74,72,74,0,0,0,
+         72,0,76,79,84,0,86,84, 83,0,79,74,79,0,83,86, 84,0,81,77,81,79,77,76, 74,76,77,79,83,0,0,0],
+    bass:'bounce',drums:'pop'},
+  beach:{e:.2,lead:{w:'triangle',v:.09,steel:true},
+    chords:[[53,57,60],[46,50,53],[48,52,55],[53,57,60],[50,53,57],[46,50,53],[48,52,55],[48,52,55]],
+    mel:[77,0,81,0,84,0,81,77, 82,0,77,0,74,77,82,0, 79,0,84,0,82,81,79,76, 77,0,0,81,0,0,77,0,
+         74,77,81,0,86,0,84,81, 82,0,81,0,79,0,77,0, 76,79,84,0,82,0,79,76, 79,0,0,0,72,74,76,79],
+    bass:'calypso',drums:'island',strum:true},
+  snow:{e:.21,lead:{w:'sine',v:.085},
+    chords:[[50,53,57],[46,50,53],[41,45,48],[48,52,55],[50,53,57],[43,46,50],[45,49,52],[45,49,52]],
+    mel:[74,0,77,0,81,0,0,79, 77,0,74,0,70,0,74,0, 72,0,77,0,81,0,84,0, 79,0,0,0,76,0,72,0,
+         74,0,77,81,86,0,84,81, 82,0,79,0,74,0,70,0, 73,0,76,0,81,0,79,76, 73,0,0,0,69,0,0,0],
+    bass:'long',drums:'sleigh',bells:true},
+  city:{e:.15,lead:{w:'sawtooth',v:.03},
+    chords:[[57,60,64],[53,57,60],[48,52,55],[55,59,62],[57,60,64],[53,57,60],[55,59,62],[52,56,59]],
+    mel:[81,0,0,84,0,0,81,79, 77,0,0,81,0,0,77,76, 76,0,79,0,84,0,83,79, 79,0,0,0,74,76,79,83,
+         84,0,0,83,0,0,81,0, 84,0,86,0,88,0,86,84, 83,0,0,79,0,0,83,86, 83,0,80,0,76,0,0,0],
+    bass:'pulse',drums:'four',arp:true}
+};
+const MUS={on:false,step:0,next:0,tempo:1,base:1,song:SONGS.grass};
+function musicStart(c){if(!SND.ctx)return;MUS.song=SONGS[c&&c.id]||SONGS.grass;MUS.on=true;MUS.step=0;MUS.next=SND.ctx.currentTime+.05;MUS.tempo=1}
 function musicStop(){MUS.on=false}
-function musicTick(){if(!MUS.on||!SND.ctx)return;const c=SND.ctx;const e=.18/(MUS.tempo*MUS.base);
+function musicTick(){if(!MUS.on||!SND.ctx)return;const c=SND.ctx,S=MUS.song,out=SND.music;const e=S.e/MUS.tempo;
   if(MUS.next<c.currentTime-.5)MUS.next=c.currentTime+.05;
-  while(MUS.next<c.currentTime+.15){const s=MUS.step%64;const m=MEL[s];if(m)tone(mtof(m+MUS.tr),MUS.next,e*.9,MUS.wave,MUS.wave==='sawtooth'?.03:MUS.wave==='sine'?.08:.045,null,SND.music);
-    if(MUS.wave==='sine'&&m&&s%4===0)tone(mtof(m+MUS.tr+12),MUS.next,e*2,'sine',.03,null,SND.music);
-    if(s%2===0){const b=BASS[(s/2)%32];tone(mtof(b+MUS.tr),MUS.next,e*1.8,'triangle',.11,null,SND.music)}
-    if(s%2===1)noiseHit(MUS.next,.04,.05,7000,SND.music);if(s%8===0)noiseHit(MUS.next,.09,.12,180,SND.music);
+  while(MUS.next<c.currentTime+.15){const t=MUS.next,s=MUS.step%64,bar=(s>>3),b8=s%8,ch=S.chords[bar],r=ch[0]-12;const m=S.mel[s];
+    // lead
+    if(m){let len=1;while(len<4&&!S.mel[(s+len)%64]&&(s+len)%8!==0)len++;
+      if(S.lead.steel){tone(mtof(m),t,e*.9,'triangle',S.lead.v,null,out);tone(mtof(m+12),t,e*.35,'sine',S.lead.v*.45,null,out)}
+      else tone(mtof(m),t,e*len*.92,S.lead.w,S.lead.v,null,out);
+      if(S.lead.w==='sine')tone(mtof(m+12),t,e*len,'sine',.022,null,out)}
+    // bass
+    if(S.bass==='bounce'){const pat=[0,12,7,12,0,12,7,12];tone(mtof(r+pat[b8]),t,e*.8,'triangle',.11,null,out)}
+    else if(S.bass==='calypso'){const pat={0:0,3:7,4:0,6:7};if(pat[b8]!=null)tone(mtof(r+pat[b8]),t,e*1.4,'triangle',.12,null,out)}
+    else if(S.bass==='long'){if(b8===0||b8===4)tone(mtof(r),t,e*3.6,'triangle',.1,null,out)}
+    else if(S.bass==='pulse'){tone(mtof(r+(b8%2?12:0)),t,e*.7,'square',.035,null,out)}
+    // chords: ukulele strum, bells, arpeggio
+    if(S.strum&&(b8===2||b8===6||b8===7))ch.forEach((n,i)=>tone(mtof(n+12),t+i*.012,e*.6,'triangle',.028,null,out));
+    if(S.bells&&b8%2===0){const n=ch[(b8>>1)%3]+24;tone(mtof(n),t,e*3,'sine',.03,null,out);tone(mtof(n+19),t,e*1.5,'sine',.008,null,out)}
+    if(S.arp){const n=ch[s%3]+12+(s%6>2?12:0);tone(mtof(n),t,e*.5,'square',.018,null,out)}
+    // drums
+    if(S.drums==='pop'){if(b8===0||b8===4)noiseHit(t,.09,.12,180,out);if(b8===2||b8===6)noiseHit(t,.07,.07,1800,out);noiseHit(t,.03,.035,7000,out)}
+    else if(S.drums==='island'){if(b8===0)noiseHit(t,.1,.1,160,out);if(b8===3||b8===6)noiseHit(t,.05,.06,2600,out);if(b8===5)noiseHit(t,.07,.06,420,out);noiseHit(t,.025,.025,9000,out)}
+    else if(S.drums==='sleigh'){noiseHit(t,.05,.03,8500,out);if(b8%2)noiseHit(t+e*.5,.04,.02,9500,out);if(b8===0)noiseHit(t,.12,.07,150,out)}
+    else if(S.drums==='four'){if(b8%2===0)noiseHit(t,.08,.13,140,out);if(b8===2||b8===6)noiseHit(t,.08,.07,2200,out);if(b8%2)noiseHit(t,.05,.04,8000,out)}
     MUS.next+=e;MUS.step++}}
 function engineSet(i,speed,on){const c=SND.ctx;if(!c)return;let e=SND.engines[i];
   if(!e){const o=c.createOscillator(),o2=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();o.type='sawtooth';o2.type='square';f.type='lowpass';f.frequency.value=700;g.gain.value=0;
@@ -1681,11 +1724,11 @@ function updHUD(dt){
 // ================= items
 function rollItem(r){
   const n=G.racers.length,f=(r.place-1)/(n-1);let w;
-  if(f<.2)w={bone:40,ball:35,jerky:15,homing:10};else if(f<.6)w={bone:15,ball:25,homing:25,jerky:20,jerky3:5,bath:5,star:5};else w={homing:20,jerky:15,jerky3:20,star:20,bath:15,ball:10};
+  if(f<.2)w={bone:34,ball:28,jerky:13,homing:10,mud:15};else if(f<.6)w={bone:12,ball:20,homing:22,jerky:17,jerky3:5,bath:5,star:5,mud:8,big:6};else w={homing:17,jerky:12,jerky3:16,star:15,bath:12,ball:6,thunder:10,big:12};
   let tot=0;for(const k in w)tot+=w[k];let x=Math.random()*tot;for(const k in w){x-=w[k];if(x<=0)return k==='jerky3'?{type:'jerky',n:3}:{type:k,n:1}}return{type:'jerky',n:1};
 }
 const dist2=(a,b)=>(a.x-b.x)**2+(a.z-b.z)**2;
-function hitRacer(r){if(r.finished)return false;if(r.star>0||r.spin>0)return false;r.spin=1.15*r.stat.spinK;r.sp*=.2;r.drifting=false;r.charge=0;r.boost=0;
+function hitRacer(r){if(r.finished)return false;if(r.star>0||r.spin>0||(r.big||0)>0)return false;r.spin=1.15*r.stat.spinK;r.sp*=.2;r.drifting=false;r.charge=0;r.boost=0;
   burstStars(r.x,2.2,r.z,16);
   if(r.human){setMsg(r,'キャン！','warn',1.1);sfx('hit');buzz(70);r.shake=1}else if(G.humans.some(h=>dist2(h,r)<70*70))sfx('hit');return true}
 const tennisTex=mkTex(64,64,(g,w,h)=>{g.fillStyle='#d7f33a';g.fillRect(0,0,w,h);g.strokeStyle='#ffffff';g.lineWidth=5;g.beginPath();g.arc(0,h/2,26,-1.4,1.4);g.stroke();g.beginPath();g.arc(w,h/2,26,1.74,4.54);g.stroke()});
@@ -1694,6 +1737,13 @@ function useItem(r){
   const it=r.item;if(!it)return;const t=it.type;const fx=Math.sin(r.h),fz=Math.cos(r.h);
   if(t==='jerky'){r.boost=Math.max(r.boost,1.25*r.stat.boostK);if(r.human)sfx('boost')}
   else if(t==='star'){r.star=7;if(r.human){sfx('star');setMsg(r,'おやつパワー！','gold',1.2)}}
+  else if(t==='thunder'){const tg=G.racers.find(o=>o!==r&&!o.finished&&o.place===(r.place===1?2:1));if(tg){
+      for(let k=0;k<26;k++)spawn(tg.x+rand(-1,1),rand(1,34),tg.z+rand(-1,1),rand(-2,2),-40,rand(-2,2),k%3?'#fff27a':'#ffffff',rand(.8,1.6),.45,0,{add:true,i:3});
+      const hit=hitRacer(tg);if(hit||tg.star<=0)tg.shrink=Math.max(tg.shrink||0,2.2);if(tg.human){setMsg(tg,'かみなり！','warn',1.4);buzz(120)}if(G.humans.length)sfx('hit')}
+    if(r.human)setMsg(r,'1位に かみなり！','gold',1.2)}
+  else if(t==='big'){r.big=6;r.shrink=0;if(r.human){sfx('star');setMsg(r,'でっかくなった！','gold',1.2)}}
+  else if(t==='mud'){const m=new THREE.Group();part(m,SPH,std(0x6b4423,{roughness:.9}),0,0,0,1.6,.35,1.6);part(m,SPH,std(0x7d5330,{roughness:.9}),.5,.15,.3,.6,.3,.6);m.position.set(r.x-fx*4,.25,r.z-fz*4);scene.add(m);
+    G.hazards.push({type:'mud',x:m.position.x,z:m.position.z,m,owner:r,safe:.6});if(G.hazards.length>24){const o=G.hazards.shift();disposeObj(o.m)}if(r.human)sfx('throw')}
   else if(t==='bath'){let c=0;for(const o of G.racers)if(o!==r&&o.star<=0&&!o.finished){o.shrink=4.5;o.drifting=false;c++;if(o.human)setMsg(o,'シャンプーされた！','warn',1.6)}
     if(G.humans.length)sfx('bath');if(r.human)setMsg(r,'シャンプー！ ×'+c,'gold',1.2)}
   else if(t==='bone'){const m=boneMesh(0xfff3d6,1);m.position.set(r.x-fx*4,.5,r.z-fz*4);m.rotation.y=Math.random()*3;scene.add(m);
@@ -1705,14 +1755,38 @@ function useItem(r){
     m.position.set(p.x,1,p.z);scene.add(m);G.projs.push(p);if(r.human)sfx('throw')}
   it.n--;if(it.n<=0)r.item=null;r.itemCD=.25;
 }
-function updItems(dt){
+// ---- course troublemakers: animals / a robot that walk back and forth across the road. Bumping one = spin.
+const CROSS_CFG={grass:{kind:'sheep',at:[.22,.5,.74],spd:.55},beach:{kind:'crab',at:[.18,.46,.62,.83],spd:.8},snow:{kind:'penguin',at:[.27,.55,.79],spd:.5},city:{kind:'robot',at:[.2,.47,.72],spd:.7}};
+function crosserMesh(kind){const g=new THREE.Group();
+  if(kind==='sheep'){const wool=std(0xfbf7ee,{roughness:.95}),dark=std(0x2a2624,{roughness:.7});
+    for(const [x,y,z,s] of [[0,1.9,0,1.25],[.9,2,.2,.9],[-.9,2,-.1,.9],[0,2.6,.3,.85],[0,2,1,.8],[0,2,-1,.8]])part(g,SPH,wool,x,y,z,s);
+    part(g,SPH,dark,0,2.4,1.8,.62,.55,.7);part(g,SPH,wool,0,2.95,1.6,.45);for(const sx of[-1,1])part(g,SPH,dark,sx*.45,2.5,1.55,.32,.16,.22);
+    for(const [x,z] of[[.6,.7],[-.6,.7],[.6,-.7],[-.6,-.7]])part(g,CYL,dark,x,.55,z,.22,1.1,.22)}
+  else if(kind==='crab'){const red=std(0xe8452c,{roughness:.45}),wh=std(0xffffff,{roughness:.3}),bk=std(0x111111,{roughness:.3});
+    part(g,SPH,red,0,1,0,1.5,.75,1.1);for(const sx of[-1,1]){part(g,SPH,red,sx*1.9,1.3,.9,.6,.45,.45);part(g,SPH,red,sx*2.3,1.5,1.3,.45,.35,.3);part(g,CYL,red,sx*.35,1.7,.6,.08,.8,.08);part(g,SPH,wh,sx*.35,2.15,.6,.22);part(g,SPH,bk,sx*.35,2.17,.78,.1);
+      for(const z of[-.5,0,.4])part(g,CYL,red,sx*1.5,.45,z,.1,.9,.1,0,0,sx*.9)}}
+  else if(kind==='penguin'){const bk=std(0x1d2230,{roughness:.5}),wh=std(0xffffff,{roughness:.6}),or=std(0xffa020,{roughness:.5});
+    part(g,SPH,bk,0,1.9,0,1,1.6,.95);part(g,SPH,wh,0,1.75,.45,.78,1.25,.6);part(g,SPH,bk,0,3.55,0,.75);part(g,SPH,wh,0,3.5,.42,.55,.5,.4);
+    part(g,CONE,or,0,3.45,.95,.18,.5,.18,Math.PI/2);for(const sx of[-1,1]){part(g,SPH,bk,sx*1,2,0,.25,.9,.45,0,0,sx*.25);part(g,SPH,or,sx*.4,.15,.35,.35,.12,.5);part(g,SPH,std(0x111111),sx*.25,3.75,.62,.1)}}
+  else{const body=std(0xcfd6e6,{roughness:.25,metalness:.6}),eye=new THREE.MeshBasicMaterial({color:0xff2a6a}),ring=new THREE.MeshBasicMaterial({color:0x2ff0ff});eye.color.setRGB(2.2,.4,1);ring.color.setRGB(.4,2,2.2);
+    part(g,CYL,body,0,1,0,1.6,1.2,1.6);part(g,DOME,body,0,1.6,0,1.5,1.5,1.5,-Math.PI/2);part(g,CYL,ring,0,.55,0,1.65,.18,1.65);part(g,SPH,eye,0,2.2,1.25,.32,.22,.2);
+    part(g,CYL,body,0,3.3,0,.06,1,.06);part(g,SPH,eye,0,3.85,0,.18)}
+  g.traverse(c=>{if(c.isMesh)c.castShadow=true});g.scale.setScalar(kind==='crab'?1.7:1.85);return g}
+function buildCrossers(C,grp){T.crossers=[];const cf=CROSS_CFG[C.id];if(!cf)return;const {PX,PZ,NX,NZ}=T;
+  cf.at.forEach((f,k)=>{const i=Math.round(f*N);const m=crosserMesh(cf.kind);grp.add(m);T.crossers.push({m,i,ph:k*1.7,spd:cf.spd*(1+.15*(k%2)),x:PX[i],z:PZ[i],lat:0,kind:cf.kind})})}
+function updCrossers(t,dt){if(!T.crossers)return;const {PX,PZ,NX,NZ}=T;const L=HW+3;
+  for(const c of T.crossers){const s=Math.sin(t*c.spd+c.ph),lat=s*L,v=Math.cos(t*c.spd+c.ph);c.lat=lat;c.x=PX[c.i]+NX[c.i]*lat;c.z=PZ[c.i]+NZ[c.i]*lat;
+    c.m.position.set(c.x,Math.abs(Math.sin(t*9+c.ph))*(c.kind==='robot'?.08:.6),c.z);c.m.rotation.y=Math.atan2(NX[c.i]*Math.sign(v||1),NZ[c.i]*Math.sign(v||1));
+    for(const r of G.racers){if(r.finished||(r.crossCD||0)>0)continue;if((r.x-c.x)**2+(r.z-c.z)**2<4.3*4.3){r.crossCD=1.2;if(r.big>0){r.sp*=.9;continue}if(hitRacer(r)&&r.human)setMsg(r,{sheep:'ひつじに ドーン！',crab:'カニに はさまれた！',penguin:'ペンギンと ごっつん！',robot:'そうじロボに ぶつかった！'}[c.kind],'warn',1.2)}}}
+  for(const r of G.racers)r.crossCD=Math.max(0,(r.crossCD||0)-dt)}
+function updItems(dt){updCrossers(G.time,dt);
   for(const b of T.boxes){if(b.t>0){b.t-=dt;if(b.t<=0)b.m.visible=true}b.m.rotation.y+=dt*1.4;b.m.rotation.x=.4;b.m.position.y=2+Math.sin(G.time*3+b.x)*.3;
     if(!b.m.visible)continue;
     for(const r of G.racers){if((r.x-b.x)**2+(r.z-b.z)**2<3.3*3.3){b.m.visible=false;b.t=2.5;
       for(let k=0;k<14;k++)spawn(b.x,2,b.z,rand(-7,7),rand(2,9),rand(-7,7),['#ff5f6d','#fff27a','#7dffa1','#6ec8ff','#b48bff'][k%5],rand(.6,1.1),.7,9,{add:true,tex:k%2?2:0,i:2,spin:rand(-6,6),drag:1});
       if(!r.item&&r.roll<=0&&!r.finished){r.roll=1.2;if(r.human)sfx('box')}break}}}
   for(let i=G.hazards.length-1;i>=0;i--){const h=G.hazards[i];h.safe-=dt;h.m.rotation.y+=dt;
-    for(const r of G.racers){if(r.finished||(h.safe>0&&r===h.owner))continue;if((r.x-h.x)**2+(r.z-h.z)**2<2.6*2.6){hitRacer(r);disposeObj(h.m);G.hazards.splice(i,1);break}}}
+    for(const r of G.racers){if(r.finished||(h.safe>0&&r===h.owner))continue;if((r.x-h.x)**2+(r.z-h.z)**2<2.6*2.6){if(h.type==='mud'){if(r.star<=0&&(r.big||0)<=0){r.mud=1.8;r.drifting=false;if(r.human){setMsg(r,'どろんこ！','warn',1.1);sfx('hit')}}}else if((r.big||0)<=0)hitRacer(r);disposeObj(h.m);G.hazards.splice(i,1);break}}}
   for(let i=G.projs.length-1;i>=0;i--){const p=G.projs[i];p.life-=dt;p.safe-=dt;
     if(p.type==='homing'){let tx,tz;const tg=p.target;
       if(tg&&!tg.finished&&dist2(p,tg)<45*45){tx=tg.x;tz=tg.z}else{const j=wi(p.idx+12);tx=T.PX[j];tz=T.PZ[j]}
@@ -1732,13 +1806,13 @@ function updItems(dt){
 function updateRacer(r,inp,dt){
   const PX=T.PX,PZ=T.PZ,NX=T.NX,NZ=T.NZ,TX=T.TX,TZ=T.TZ;
   if(r.roll>0){r.roll-=dt;if(r.human&&Math.floor((r.roll+dt)*14)!==Math.floor(r.roll*14))sfx('tick');if(r.roll<=0){r.item=rollItem(r);if(r.human)sfx('got');r.itemHold=rand(.8,3.5)}}
-  r.itemCD=Math.max(0,r.itemCD-dt);r.boost=Math.max(0,r.boost-dt);r.star=Math.max(0,r.star-dt);r.shrink=Math.max(0,r.shrink-dt);r.wallCD=Math.max(0,r.wallCD-dt);
+  r.itemCD=Math.max(0,r.itemCD-dt);r.boost=Math.max(0,r.boost-dt);r.star=Math.max(0,r.star-dt);r.big=Math.max(0,(r.big||0)-dt);r.mud=Math.max(0,(r.mud||0)-dt);r.shrink=Math.max(0,r.shrink-dt);r.wallCD=Math.max(0,r.wallCD-dt);
   const none=NO_INPUT;
   if(r.stall>0){r.stall-=dt;inp=none;spawn(r.x,1,r.z,rand(-1,1),2,rand(-1,1),'#8a9098',1.8,.8,-.5,{tex:1,grow:1.5,a:.7})}
   if(r.spin>0){r.spin-=dt;r.spinA+=dt*13;inp=none;r.sp*=Math.pow(.15,dt)}else r.spinA=0;
   if(inp.item&&!r.prevItem&&r.item&&r.itemCD<=0&&r.roll<=0)useItem(r);r.prevItem=inp.item;
   const st=r.stat;let max=BASE_MAX*st.speed*r.cpuMul;
-  if(r.off&&r.boost<=0&&r.star<=0)max*=st.off;if(r.shrink>0)max*=.7;if(r.star>0)max*=1.15;if(r.boost>0)max*=1.38;
+  if(r.off&&r.boost<=0&&r.star<=0)max*=st.off;if(r.shrink>0)max*=.7;if(r.mud>0)max*=.55;if(r.big>0)max*=1.06;if(r.star>0)max*=1.15;if(r.boost>0)max*=1.38;
   if(r.boost>0&&r.spin<=0)r.sp=Math.max(r.sp,max*.97);
   else if(inp.acc&&r.sp<max)r.sp=Math.min(max,r.sp+ACC*st.accel*dt*(1.15-.55*Math.max(0,r.sp)/max));
   else if(inp.brake){r.sp-=(r.sp>0?55:18)*dt;if(r.sp<-16)r.sp=-16}
@@ -1824,7 +1898,7 @@ function update(dt){
   if(G.count>0){const prev=G.count;G.count-=dt;const sec=Math.ceil(G.count-.6);
     for(const h of G.humans){const i=readInput(h.pi);if(i.acc&&h.accStart<0)h.accStart=G.count;if(!i.acc)h.accStart=-1}
     if(sec!==G.lastCount&&G.count>.6){G.lastCount=sec;if(sec>=1&&sec<=3){$('#count').innerHTML=`<span>${sec}</span><i class="ring"></i>`;$('#count').className='';sfx('beep')}}
-    if(prev>.6&&G.count<=.6){$('#count').innerHTML='<span>GO!</span><i class="ring"></i>';$('#count').className='go';sfx('go');musicStart(COURSES[G.course].music);
+    if(prev>.6&&G.count<=.6){$('#count').innerHTML='<span>GO!</span><i class="ring"></i>';$('#count').className='go';sfx('go');musicStart(COURSES[G.course]);
       for(const h of G.humans){if(h.accStart>0){if(h.accStart<=1.75&&h.accStart>=.9){h.boost=1.1;setMsg(h,'ロケットスタート！','gold',1.2);sfx('boost')}else if(h.accStart>2.3){h.stall=.7;setMsg(h,'あわてすぎ！','warn',1)}}}
       for(const r of G.racers)if(!r.human&&Math.random()<[.1,.4,.7][cpuDiff])r.boost=.8}
     if(G.count>.6){updVisuals(dt);return}
@@ -1835,7 +1909,7 @@ function update(dt){
   const R=G.racers;for(let a=0;a<R.length;a++)for(let b=a+1;b<R.length;b++){const A=R[a],B=R[b];const dx=B.x-A.x,dz=B.z-A.z,d2=dx*dx+dz*dz;const rad=(A.shrink>0?1.3:2.2)+(B.shrink>0?1.3:2.2);
     if(d2<rad*rad&&d2>1e-4){const d=Math.sqrt(d2),o=(rad-d)/2,nx=dx/d,nz=dz/d;const wa=A.human?A.stat.spinK:1,wb=B.human?B.stat.spinK:1;const ka=wa/(wa+wb)*2,kb=wb/(wa+wb)*2;
       A.x-=nx*o*ka;A.z-=nz*o*ka;B.x+=nx*o*kb;B.z+=nz*o*kb;
-      if(A.star>0&&B.star<=0)hitRacer(B);else if(B.star>0&&A.star<=0)hitRacer(A);
+      if(A.star>0&&B.star<=0)hitRacer(B);else if(B.star>0&&A.star<=0)hitRacer(A);else if((A.big||0)>0&&!((B.big||0)>0))hitRacer(B);else if((B.big||0)>0&&!((A.big||0)>0))hitRacer(A);
       else if(A.shrink>0&&B.shrink<=0&&B.sp>20)hitRacer(A);else if(B.shrink>0&&A.shrink<=0&&A.sp>20)hitRacer(B);
       else{A.sp*=.97;B.sp*=.97;if((A.human||B.human)&&Math.random()<.3)sfx('bump')}}}
   updItems(dt);
@@ -1847,7 +1921,7 @@ function update(dt){
 }
 function animRacer(r,dt,t){const m=r.m;
   m.root.position.set(r.x,0,r.z);m.root.rotation.y=r.h+r.vyaw;
-  const sc=r.shrink>0?.55:1;m.root.scale.setScalar(lerp(m.root.scale.x,sc,1-Math.pow(.001,dt)));
+  const sc=(r.big||0)>0?1.55:r.shrink>0?.55:1;m.root.scale.setScalar(lerp(m.root.scale.x,sc,1-Math.pow(.001,dt)));
   const hopY=r.hop>0?Math.sin((r.hop/.28)*Math.PI)*.9:(r.sp>5?Math.sin(t*30+r.x)*.04*(r.off?2.5:1):0);
   if(r.hop>0&&!m.wasHop){m.earV[0]-=4;m.earV[1]-=4}m.wasHop=r.hop>0;
   m.body.position.y=hopY;
@@ -2174,6 +2248,6 @@ makePortraits();
 let ql='high';try{const v=localStorage.getItem('schnaQ');if(v){ql=v;Q.checked=true}}catch(e){}setQuality(ql,false);
 $('#loading').remove();
 requestAnimationFrame(frame);
-window.__game={PADNAV,G,T,Q,setQuality,gfx:{scene,renderer,sunL,hemi,PS,GAR,POD,applyLook,LOOKS,SKIES,buildRacerMesh,CHARS,podiumTick,update},SAVE:()=>SAVE,CHARS,COURSES,keys,startRace,toGarage,toPodium,persist,locate,readInput,STK,touch};
+window.__game={get CROSS(){return T.crossers},ITEMS,useItem,rollItem,SONGS,MUS,musicStart,musicStop,musicTick,PADNAV,G,T,Q,setQuality,gfx:{scene,renderer,sunL,hemi,PS,GAR,POD,applyLook,LOOKS,SKIES,buildRacerMesh,CHARS,podiumTick,update},SAVE:()=>SAVE,CHARS,COURSES,keys,startRace,toGarage,toPodium,persist,locate,readInput,STK,touch};
 </script>
 </body></html>
