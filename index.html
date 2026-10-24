@@ -418,6 +418,7 @@ html.touchdev .pcnote{display:block;font-family:var(--font-body);font-weight:700
   .result h2,.gpanel h2{-webkit-text-stroke:5px var(--frame);text-shadow:0 3px 0 var(--frame)}
   .mode b,.course b,.box h3{-webkit-text-stroke:4px var(--frame)} .card .nm{-webkit-text-stroke:3px var(--frame)}
   .big.red,.big.bl,.big.green{-webkit-text-stroke:4px var(--frame)} .rt td:first-child{-webkit-text-stroke:3px var(--frame)}}
+.padf{outline:4px solid #ffd54a!important;outline-offset:3px;box-shadow:0 0 0 8px rgba(255,213,74,.35)!important}
 </style>
 
 <canvas id="gl"></canvas>
@@ -521,7 +522,7 @@ html.touchdev .pcnote{display:block;font-family:var(--font-body);font-weight:700
       <span><kbd>←</kbd><kbd>→</kbd></span><span>ハンドル</span>
       <span><kbd>右Shift</kbd> か <kbd>/</kbd></span><span>ドリフト</span>
       <span><kbd>Enter</kbd> か <kbd>.</kbd></span><span>アイテムを使う</span>
-    </div><p>ゲームパッドもつかえます（A=アクセル、R=ドリフト、X=アイテム）。<kbd>Esc</kbd> で一時停止。</p></div>
+    </div><p>コントローラーもつかえます（A=アクセル、B=ブレーキ、LかR=ドリフト、XかY=アイテム、START=一時停止）。2台つなぐと 2台目が 2P。メニューは スティックで えらんで A で けってい、B で もどる。<kbd>Esc</kbd> で一時停止。</p></div>
     <div class="box"><h3>グランプリと賞金</h3><p>4コースを走り、順位のポイント（1位15点〜8位1点）の合計で優勝をきめます。<br>レースごとに順位で賞金（1位1,500円〜）。グランプリの総合順位でボーナス（優勝3,000円〜）。<br>ためた賞金はガレージでマシンの改造に使えます。</p></div>
     <div class="box"><h3>改造</h3><p>⚙️ エンジン：さいこう速度アップ<br>🛞 タイヤ：曲がりやすく、草や砂でおそくなりにくい<br>🔥 ターボ：加速アップ・ミニターボが長くなる<br>🛡️ ボディ：ぶつかりに強く、スピンが短くなる</p></div>
     <div class="box tbox" style="grid-column:1/-1"><h3>スマホ・タブレット（よこむきで あそぶ）</h3><div class="keys">
@@ -2054,6 +2055,73 @@ function toCourseSel(){G.state='menu';showOnly('coursesel');const list=$('#cours
     g.lineJoin='round';g.beginPath();pts.forEach((p,i)=>{const x=(p.x-a)*sc+160-(b2-a)*sc/2,y=(p.z-c)*sc+120-(d-c)*sc/2;i?g.lineTo(x,y):g.moveTo(x,y)});g.closePath();g.strokeStyle='#15223c';g.lineWidth=14;g.stroke();g.strokeStyle=C.neon?'#2ff0ff':'#fffaf0';g.lineWidth=7;g.stroke();
     if(art){const w=document.createElement('div');w.className='cpic';w.innerHTML=`<img alt="${C.name}" src="${art}">`;w.appendChild(cv);b.appendChild(w)}else b.appendChild(cv);b.insertAdjacentHTML('beforeend',`<span class="no">コース ${k+1}</span><b>${C.name}</b><span>${C.desc}</span>`);b.onclick=()=>{audioInit();startRace(k)};list.appendChild(b)})}
   list.children[0].focus()}
+// ================= gamepad menus: stick / D-pad moves the focus ring, A = select, B = back, START = pause
+// cfg.root() -> element whose buttons are navigable (null = gameplay, pad handled elsewhere)
+// cfg.custom(pi,ev) -> true when the screen handles the pad itself (ev: 'up'|'down'|'left'|'right'|'a'|'b'|'start')
+// cfg.back(root), cfg.start() -> optional
+function makePadNav(cfg){
+  const S={btn:[],dir:[],hold:[],cur:null,used:false,lastRoot:null,rootT:0,lock:0};
+  const DIRS=['up','down','left','right'];
+  function shown(el){if(el.disabled)return false;for(let e=el;e&&e!==document.body;e=e.parentElement)if(e.hidden)return false;
+    const r=el.getBoundingClientRect();if(r.width<2||r.height<2)return false;const cs=getComputedStyle(el);return cs.visibility!=='hidden'&&cs.display!=='none'}
+  function items(root){return [...root.querySelectorAll('button,[tabindex="0"]')].filter(shown)}
+  function ring(el){if(S.cur&&S.cur!==el)S.cur.classList.remove('padf');S.cur=el;if(!el)return;el.classList.add('padf');try{el.focus({preventScroll:true})}catch(e){}
+    try{el.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}}
+  function pick(list){const a=document.activeElement;if(a&&list.includes(a))return a;if(S.cur&&list.includes(S.cur))return S.cur;return list[0]}
+  function step(list,from,d){const r=from.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    const vx=d==='left'?-1:d==='right'?1:0,vy=d==='up'?-1:d==='down'?1:0;let best=null,bs=1e9;
+    for(const el of list){if(el===from)continue;const q=el.getBoundingClientRect(),dx=q.left+q.width/2-cx,dy=q.top+q.height/2-cy;
+      const along=dx*vx+dy*vy;if(along<=4)continue;const side=Math.abs(dx*vy)+Math.abs(dy*vx);
+      const lined=vx?(q.top<r.bottom-2&&q.bottom>r.top+2):(q.left<r.right-2&&q.right>r.left+2);const sc=along+side*2.2+(lined?0:1e5);if(sc<bs){bs=sc;best=el}}
+    return best}
+  // returns true when the screen changed (the rest of this poll is dropped so a second pad cannot act on the new screen)
+  function fire(pi,ev,t){
+    const r0=cfg.root();
+    if(cfg.custom&&cfg.custom(pi,ev))return cfg.root()!==r0;
+    if(ev==='start'){if(cfg.start)cfg.start();return cfg.root()!==r0}
+    const root=r0;if(!root)return false;const list=items(root);if(!list.length)return false;
+    // first touch of the pad: show the ring, never press anything
+    if(!S.used||!S.cur||!list.includes(S.cur)){S.used=true;ring(pick(list));if(ev!=='b')return false}
+    if(DIRS.includes(ev)){const n=step(list,S.cur,ev);if(n){ring(n);if(cfg.tick)cfg.tick()}return false}
+    // a screen that only just opened, or a press right after another one: ignore (no accidental double select)
+    if(t<S.lock||t-S.rootT<220)return false;
+    if(ev==='a'){S.lock=t+250;S.cur.click();return cfg.root()!==r0}
+    if(ev==='b'&&cfg.back){S.lock=t+250;cfg.back(root);return cfg.root()!==r0}
+    return false}
+  function pads(){try{return navigator.getGamepads?[...navigator.getGamepads()]:[]}catch(e){return[]}}
+  // stick: dominant axis only, with hysteresis (on past .55, stays on until back inside .35)
+  function axisDir(ax,ay,prev){const keep=.35;
+    if((prev==='left'&&ax<-keep)||(prev==='right'&&ax>keep)||(prev==='up'&&ay<-keep)||(prev==='down'&&ay>keep))return prev;
+    const ux=Math.abs(ax),uy=Math.abs(ay);if(ux<.55&&uy<.55)return null;return ux>=uy?(ax<0?'left':'right'):(ay<0?'up':'down')}
+  function poll(t){
+    const ps=pads();
+    outer:for(let i=0;i<ps.length;i++){const p=ps[i];if(!p||!p.connected)continue;
+      const b=k=>!!(p.buttons[k]&&p.buttons[k].pressed);const pd=S.dir[i]||null;
+      const dp=b(12)?'up':b(13)?'down':b(14)?'left':b(15)?'right':null;// one direction per pad per poll
+      const d=dp||axisDir(p.axes[0]||0,p.axes[1]||0,pd);
+      const btn={a:b(0),b:b(1),start:b(9)},pb=S.btn[i]||{};S.btn[i]=btn;S.dir[i]=d;
+      if(d&&d!==pd){S.hold[i]=t+340;if(fire(i,d,t))break outer}
+      else if(d&&t>=S.hold[i]){S.hold[i]=t+120;if(fire(i,d,t))break outer}
+      for(const k in btn)if(btn[k]&&!pb[k]&&fire(i,k,t))break outer}
+    const root=cfg.root();if(root!==S.lastRoot){S.lastRoot=root;S.rootT=t;if(S.cur){S.cur.classList.remove('padf');S.cur=null}
+      if(root&&S.used){const list=items(root);if(list.length)ring(pick(list))}}}
+  addEventListener('pointerdown',()=>{S.used=false;if(S.cur){S.cur.classList.remove('padf');S.cur=null}},true);
+  addEventListener('keydown',()=>{S.used=false;if(S.cur){S.cur.classList.remove('padf');S.cur=null}},true);
+  // own timer, not the render loop: a slow frame rate must not swallow short presses
+  setInterval(()=>{try{poll(performance.now())}catch(e){console.error(e)}},16);
+  return S}
+const PADNAV=makePadNav({
+  root(){if(G.state==='race'&&!G.paused&&$('#crash').hidden)return null;if(G.state==='select')return null;
+    for(const id of['crash','pause','result','podium','garage','coursesel','modesel','howto','title']){const e=$('#'+id);if(e&&!e.hidden)return e}return null},
+  custom(pi,ev){
+    if(G.state==='select'){const two=G.mode===2;if(two&&pi>1)return true;
+      const m=(two&&pi===0)?{up:'KeyW',down:'KeyS',left:'KeyA',right:'KeyD',a:'Space',b:'Escape'}:{up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',a:'Enter',b:'Escape'};
+      if(m[ev])onKey({code:m[ev],key:'',preventDefault(){}});return true}
+    if(G.state==='race'&&$('#crash').hidden){if(ev==='start'){setPause(!G.paused);return true}
+      if(!G.paused){if(ev==='a'&&G.intro>.3)G.intro=.3;return true}}
+    return false},
+  back(root){const m={modesel:'#modeBack',coursesel:'#courseBack',garage:'#gBack',howto:'#howBack',pause:'#pResume'};const s=m[root.id];if(s)$(s).click()},
+  tick(){sfx('tick')}});
 function onKey(e){
   if(G.state==='select'){const two=G.mode===2;let ch=false;const cols=gridCols();
     const mv=(p,d)=>{if(SEL.ok[p])return;SEL.cur[p]=(SEL.cur[p]+d+CHARS.length)%CHARS.length;ch=true;sfx('tick')};
@@ -2092,6 +2160,6 @@ makePortraits();
 let ql='high';try{const v=localStorage.getItem('schnaQ');if(v){ql=v;Q.checked=true}}catch(e){}setQuality(ql,false);
 $('#loading').remove();
 requestAnimationFrame(frame);
-window.__game={G,T,Q,setQuality,gfx:{scene,renderer,sunL,hemi,PS,GAR,POD,applyLook,LOOKS,SKIES,buildRacerMesh,CHARS,podiumTick,update},SAVE:()=>SAVE,CHARS,COURSES,keys,startRace,toGarage,toPodium,persist,locate,readInput,STK,touch};
+window.__game={PADNAV,G,T,Q,setQuality,gfx:{scene,renderer,sunL,hemi,PS,GAR,POD,applyLook,LOOKS,SKIES,buildRacerMesh,CHARS,podiumTick,update},SAVE:()=>SAVE,CHARS,COURSES,keys,startRace,toGarage,toPodium,persist,locate,readInput,STK,touch};
 </script>
 </body></html>
