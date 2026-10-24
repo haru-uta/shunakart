@@ -448,7 +448,7 @@ html.touchdev .pcnote{display:block;font-family:var(--font-body);font-weight:700
   <div class="logo"><span class="ja">シュナカート</span><span class="sub">どうぶつ グランプリ</span></div>
   <div class="menu">
     <button class="big red" id="b1p" type="button">ひとりで あそぶ</button>
-    <button class="big bl" id="b2p" type="button">ふたりで たいせん<small class="pcnote">パソコンのキーボード用</small></button>
+    <button class="big bl" id="b2p" type="button">ふたりで たいせん<small class="pcnote">キーボード か コントローラー2台</small></button>
     <button class="big gold" id="bgar" type="button">ガレージ（改造）</button>
     <button class="big" id="bhow" type="button">あそびかた</button>
     <div class="rowchips" role="group" aria-label="CPUの強さ"><span>CPUの強さ</span>
@@ -459,6 +459,11 @@ html.touchdev .pcnote{display:block;font-family:var(--font-body);font-weight:700
     <div class="rowchips" role="group" aria-label="画質"><span>画質</span>
       <button class="chip qchip" data-q="high" type="button" aria-pressed="true">きれい（おすすめ）</button>
       <button class="chip qchip" data-q="std" type="button" aria-pressed="false">かるい</button>
+    </div>
+    <div class="rowchips" role="group" aria-label="コントローラー" data-padonly hidden><span>コントローラー</span>
+      <button class="chip" data-pl="auto" type="button" aria-pressed="true">自動</button>
+      <button class="chip" data-pl="std" type="button" aria-pressed="false">PS・Xbox</button>
+      <button class="chip" data-pl="switch" type="button" aria-pressed="false">Switch</button>
     </div>
   </div>
   <p class="credit">タイトルの絵: GPT（猪八戒）／ゲーム制作: Claude（孫悟空）</p>
@@ -522,7 +527,7 @@ html.touchdev .pcnote{display:block;font-family:var(--font-body);font-weight:700
       <span><kbd>←</kbd><kbd>→</kbd></span><span>ハンドル</span>
       <span><kbd>右Shift</kbd> か <kbd>/</kbd></span><span>ドリフト</span>
       <span><kbd>Enter</kbd> か <kbd>.</kbd></span><span>アイテムを使う</span>
-    </div><p>コントローラーもつかえます（A=アクセル、B=ブレーキ、LかR=ドリフト、XかY=アイテム、START=一時停止）。2台つなぐと 2台目が 2P。メニューは スティックで えらんで A で けってい、B で もどる。<kbd>Esc</kbd> で一時停止。</p></div>
+    </div><p>コントローラーもつかえます（A=アクセル、B=ブレーキ、LかR=ドリフト、XかY=アイテム、START=一時停止）。2台つなぐと 2台目が 2P。メニューは スティックで えらんで A で けってい、B で もどる。Switch のコントローラーは タイトルの「コントローラー」で Switch をえらぶ（自動でも たいてい 切りかわる）。<kbd>Esc</kbd> で一時停止。</p></div>
     <div class="box"><h3>グランプリと賞金</h3><p>4コースを走り、順位のポイント（1位15点〜8位1点）の合計で優勝をきめます。<br>レースごとに順位で賞金（1位1,500円〜）。グランプリの総合順位でボーナス（優勝3,000円〜）。<br>ためた賞金はガレージでマシンの改造に使えます。</p></div>
     <div class="box"><h3>改造</h3><p>⚙️ エンジン：さいこう速度アップ<br>🛞 タイヤ：曲がりやすく、草や砂でおそくなりにくい<br>🔥 ターボ：加速アップ・ミニターボが長くなる<br>🛡️ ボディ：ぶつかりに強く、スピンが短くなる</p></div>
     <div class="box tbox" style="grid-column:1/-1"><h3>スマホ・タブレット（よこむきで あそぶ）</h3><div class="keys">
@@ -1573,7 +1578,7 @@ document.querySelectorAll('#touch .tbtn').forEach(b=>{const k=b.dataset.k;
     off=e=>{e.preventDefault();touch[k]=false;b.classList.remove('on')};
   b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('lostpointercapture',off);
   b.addEventListener('contextmenu',e=>e.preventDefault())});
-function pad(i){const ps=navigator.getGamepads?navigator.getGamepads():[];const p=ps&&ps[i];return p&&p.connected?p:null}
+function pad(i){if(G.mode!==2)return i===0?firstPad():null;const ps=navigator.getGamepads?navigator.getGamepads():[];const p=ps&&ps[i];return p&&p.connected?p:null}
 const INP=[{},{}],NO_INPUT=Object.freeze({acc:false,brake:false,steer:0,drift:false,item:false});
 function readInput(pi){
   const inp=INP[pi?1:0];inp.acc=false;inp.brake=false;inp.steer=0;inp.drift=false;inp.item=false;const two=G.mode===2;
@@ -1582,7 +1587,7 @@ function readInput(pi){
       if(G.touchOn){if(STK.id!==null){if(STK.sy>.5)inp.brake=true;else inp.acc=true;inp.steer+=STK.steer}if(touch.drift)inp.drift=true;if(touch.item||touch.itemQ){inp.item=true;touch.itemQ=false}}}}
   else{if(keys.ArrowUp)inp.acc=true;if(keys.ArrowDown)inp.brake=true;if(keys.ArrowLeft)inp.steer+=1;if(keys.ArrowRight)inp.steer-=1;if(keys.ShiftRight||keys.Slash)inp.drift=true;if(keys.Enter||keys.Period||keys.NumpadEnter)inp.item=true}
   const gp=pad(pi);
-  if(gp){const ax=gp.axes[0]||0;if(Math.abs(ax)>.2)inp.steer-=ax;const b=k=>gp.buttons[k]&&gp.buttons[k].pressed;
+  if(gp){const ax=gp.axes[0]||0;if(Math.abs(ax)>.2)inp.steer-=ax;const sw=padSwap(gp);const b=k=>{if(sw&&(k===0||k===1))k=1-k;return gp.buttons[k]&&gp.buttons[k].pressed};
     if(b(0)||b(7))inp.acc=true;if(b(1)||b(6))inp.brake=true;if(b(5)||b(4))inp.drift=true;if(b(2)||b(3))inp.item=true;if(b(14))inp.steer+=1;if(b(15))inp.steer-=1}
   inp.steer=clamp(inp.steer,-1,1);return inp;
 }
@@ -2059,6 +2064,13 @@ function toCourseSel(){G.state='menu';showOnly('coursesel');const list=$('#cours
 // cfg.root() -> element whose buttons are navigable (null = gameplay, pad handled elsewhere)
 // cfg.custom(pi,ev) -> true when the screen handles the pad itself (ev: 'up'|'down'|'left'|'right'|'a'|'b'|'start')
 // cfg.back(root), cfg.start() -> optional
+// button layout: browsers read face buttons by position, so on a Nintendo pad the right button (A) arrives as index 1.
+// 'auto' swaps A/B for pads whose name says Nintendo; 'std' never swaps; 'switch' always swaps.
+const PADL={mode:'auto'};try{PADL.mode=localStorage.getItem('padLayout')||'auto'}catch(e){}
+function padSwap(p){return PADL.mode==='switch'||(PADL.mode==='auto'&&!!p&&/nintendo|joy-con|pro controller|057e/i.test(p.id||''))}
+function setPadLayout(m){PADL.mode=['auto','std','switch'].includes(m)?m:'auto';try{localStorage.setItem('padLayout',PADL.mode)}catch(e){}
+  document.querySelectorAll('[data-pl]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.pl===PADL.mode))}
+function firstPad(){try{const ps=navigator.getGamepads?[...navigator.getGamepads()]:[];return ps.find(p=>p&&p.connected)||null}catch(e){return null}}
 function makePadNav(cfg){
   const S={btn:[],dir:[],hold:[],cur:null,used:false,lastRoot:null,rootT:0,lock:0};
   const DIRS=['up','down','left','right'];
@@ -2095,11 +2107,12 @@ function makePadNav(cfg){
     const ux=Math.abs(ax),uy=Math.abs(ay);if(ux<.55&&uy<.55)return null;return ux>=uy?(ax<0?'left':'right'):(ay<0?'up':'down')}
   function poll(t){
     const ps=pads();
+    const any=ps.some(p=>p&&p.connected);if(any!==S.any){S.any=any;document.querySelectorAll('[data-padonly]').forEach(e=>e.hidden=!any)}
     outer:for(let i=0;i<ps.length;i++){const p=ps[i];if(!p||!p.connected)continue;
       const b=k=>!!(p.buttons[k]&&p.buttons[k].pressed);const pd=S.dir[i]||null;
       const dp=b(12)?'up':b(13)?'down':b(14)?'left':b(15)?'right':null;// one direction per pad per poll
       const d=dp||axisDir(p.axes[0]||0,p.axes[1]||0,pd);
-      const btn={a:b(0),b:b(1),start:b(9)},pb=S.btn[i]||{};S.btn[i]=btn;S.dir[i]=d;
+      const sw=padSwap(p),btn={a:b(sw?1:0),b:b(sw?0:1),start:b(9)},pb=S.btn[i]||{};S.btn[i]=btn;S.dir[i]=d;
       if(d&&d!==pd){S.hold[i]=t+340;if(fire(i,d,t))break outer}
       else if(d&&t>=S.hold[i]){S.hold[i]=t+120;if(fire(i,d,t))break outer}
       for(const k in btn)if(btn[k]&&!pb[k]&&fire(i,k,t))break outer}
@@ -2153,6 +2166,7 @@ document.querySelectorAll('#gTabs button').forEach(b=>b.onclick=()=>{GAR.p=+b.da
 $('#sndBtn').onclick=()=>{audioInit();setSound(!SND.on)};
 document.querySelectorAll('.chip[data-diff]').forEach(c=>c.onclick=()=>{cpuDiff=+c.dataset.diff;document.querySelectorAll('.chip[data-diff]').forEach(x=>x.setAttribute('aria-pressed',x===c));try{localStorage.setItem('schnaDiff',cpuDiff)}catch(e){}});
 document.querySelectorAll('.qchip').forEach(c=>c.onclick=()=>{setQuality(c.dataset.q,true);Q.checked=true});
+document.querySelectorAll('[data-pl]').forEach(c=>c.onclick=()=>{setPadLayout(c.dataset.pl);sfx('tick')});setPadLayout(PADL.mode);
 $('#itemList').innerHTML=Object.values(ITEMS).map(i=>`<span class="ic">${i.icon}</span><span><b>${i.name}</b>　${i.desc}</span>`).join('');
 try{const s=localStorage.getItem('schnaSnd');if(s==='0')setSound(false);const d=localStorage.getItem('schnaDiff');if(d!=null){cpuDiff=+d;document.querySelectorAll('.chip[data-diff]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.diff===d))}}catch(e){}
 if(KEYART.startsWith('data:'))$('#title').style.backgroundImage=`url(${KEYART})`;
