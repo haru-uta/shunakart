@@ -1640,8 +1640,8 @@ function buildHUD(){
     hud.appendChild(d);h.hud={el:d,lt:d.querySelector('.lt'),tm:d.querySelector('.tm'),item:d.querySelector('.item'),ic:d.querySelector('.ic'),msg:d.querySelector('.msg'),place:d.querySelector('.place'),pn:d.querySelector('.pn'),sv:d.querySelector('.sv'),lines:d.querySelector('.lines'),cache:{},msgT:0}});
   document.querySelectorAll('.divider').forEach(e=>e.remove());
   if(G.mode===2){const dv=document.createElement('div');dv.className='divider';dv.style.top='calc(50% - 3px)';document.body.appendChild(dv)}
-  const mc=$('#mini');mc.hidden=false;mc.style.left='max(16px, env(safe-area-inset-left, 0px))';
-  mc.style.top=G.mode===2?'calc(50% - 12px - clamp(120px, 15vw, 190px))':'calc(110px + env(safe-area-inset-top, 0px))';
+  const mc=$('#mini');mc.hidden=false;mc.style.left='auto';mc.style.right='max(16px, env(safe-area-inset-right, 0px))';
+  mc.style.top=G.mode===2?'calc(58px + env(safe-area-inset-top, 0px))':'calc(110px + env(safe-area-inset-top, 0px))';
   let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;for(let i=0;i<N;i++){minX=Math.min(minX,T.PX[i]);maxX=Math.max(maxX,T.PX[i]);minZ=Math.min(minZ,T.PZ[i]);maxZ=Math.max(maxZ,T.PZ[i])}
   const S=200;mc.width=S;mc.height=S;const sc=(S-30)/Math.max(maxX-minX,maxZ-minZ);
   G.mm={sc,ox:(S-(maxX-minX)*sc)/2-minX*sc,oz:(S-(maxZ-minZ)*sc)/2-minZ*sc,S};
