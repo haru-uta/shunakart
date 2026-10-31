@@ -1688,12 +1688,20 @@ zone.addEventListener('pointerdown',e=>{e.preventDefault();if(STK.id!==null||!G.
 zone.addEventListener('pointermove',e=>{if(e.pointerId!==STK.id)return;e.preventDefault();stickSet(e.clientX,e.clientY)});
 ['pointerup','pointercancel','lostpointercapture'].forEach(t=>zone.addEventListener(t,e=>{if(e.pointerId===STK.id)stickReset()}));
 zone.addEventListener('contextmenu',e=>e.preventDefault());
+['touchend','touchcancel'].forEach(t=>addEventListener(t,e=>{if(e.touches&&e.touches.length===0){if(STK.id!==null)stickReset();for(const k in touch)touch[k]=false;document.querySelectorAll('#touch .tbtn').forEach(b=>b.classList.remove('on'))}},true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(G.state==='race'&&!G.paused)setPause(true)}});
 document.querySelectorAll('#touch .tbtn').forEach(b=>{const k=b.dataset.k;
   const on=e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId)}catch(_){}touch[k]=true;if(k==='item')touch.itemQ=true;b.classList.add('on');buzz(10)},
     off=e=>{e.preventDefault();touch[k]=false;b.classList.remove('on')};
   b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('lostpointercapture',off);
   b.addEventListener('contextmenu',e=>e.preventDefault())});
 function pad(i){if(G.mode!==2)return i===0?firstPad():null;const ps=navigator.getGamepads?navigator.getGamepads():[];const p=ps&&ps[i];return p&&p.connected?p:null}
+// a button or stick already held when the race starts / pause ends / the pad connects is ignored until it is let go
+// (stops a stuck trigger, a drifting stick or a non-controller device that reports itself as a pad from driving the kart)
+const PADM={};
+function padMask(p){if(!p||!p.connected)return;const m={b:new Set(),ax:Math.abs(p.axes[0]||0)>.2};p.buttons.forEach((x,k)=>{if(x&&x.pressed)m.b.add(k)});PADM[p.index]=m}
+function padMaskAll(){for(const k in PADM)delete PADM[k];try{(navigator.getGamepads?[...navigator.getGamepads()]:[]).forEach(padMask)}catch(e){}}
+addEventListener('gamepadconnected',e=>padMask(e.gamepad));
 const INP=[{},{}],NO_INPUT=Object.freeze({acc:false,brake:false,steer:0,drift:false,item:false});
 function readInput(pi){
   const inp=INP[pi?1:0];inp.acc=false;inp.brake=false;inp.steer=0;inp.drift=false;inp.item=false;const two=G.mode===2;
@@ -1702,11 +1710,12 @@ function readInput(pi){
       if(G.touchOn){if(STK.id!==null){if(STK.sy>.5)inp.brake=true;else inp.acc=true;inp.steer+=STK.steer}if(touch.drift)inp.drift=true;if(touch.item||touch.itemQ){inp.item=true;touch.itemQ=false}}}}
   else{if(keys.ArrowUp)inp.acc=true;if(keys.ArrowDown)inp.brake=true;if(keys.ArrowLeft)inp.steer+=1;if(keys.ArrowRight)inp.steer-=1;if(keys.ShiftRight||keys.Slash)inp.drift=true;if(keys.Enter||keys.Period||keys.NumpadEnter)inp.item=true}
   const gp=pad(pi);
-  if(gp){const ax=gp.axes[0]||0;if(Math.abs(ax)>.2)inp.steer-=ax;const sw=padSwap(gp);const b=k=>{if(sw&&(k===0||k===1))k=1-k;return gp.buttons[k]&&gp.buttons[k].pressed};
+  if(gp){const pm=PADM[gp.index];let ax=gp.axes[0]||0;if(pm&&pm.ax){if(Math.abs(ax)<.2)pm.ax=false;else ax=0}if(Math.abs(ax)>.2)inp.steer-=ax;const sw=padSwap(gp);
+    const b=k=>{if(sw&&(k===0||k===1))k=1-k;const on=!!(gp.buttons[k]&&gp.buttons[k].pressed);if(pm&&pm.b.has(k)){if(!on)pm.b.delete(k);return false}return on};
     if(b(0)||b(7))inp.acc=true;if(b(1)||b(6))inp.brake=true;if(b(5)||b(4))inp.drift=true;if(b(2)||b(3))inp.item=true;if(b(14))inp.steer+=1;if(b(15))inp.steer-=1}
   inp.steer=clamp(inp.steer,-1,1);return inp;
 }
-function clearInput(){for(const k in keys)keys[k]=false;for(const k in touch)touch[k]=false;document.querySelectorAll('#touch .tbtn').forEach(b=>b.classList.remove('on'));stickReset();for(const h of G.humans)h.prevItem=true}
+function clearInput(){padMaskAll();for(const k in keys)keys[k]=false;for(const k in touch)touch[k]=false;document.querySelectorAll('#touch .tbtn').forEach(b=>b.classList.remove('on'));stickReset();for(const h of G.humans)h.prevItem=true}
 
 // ================= game state
 const G={state:'menu',mode:1,picks:[0,2],racers:[],humans:[],hazards:[],projs:[],time:0,count:0,intro:0,paused:false,touchOn:false,endT:0,
